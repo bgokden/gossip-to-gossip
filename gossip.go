@@ -2,18 +2,33 @@ package gossip
 
 import (
 	"context"
+	"errors"
 	"log"
-	"sync"
+	"strings"
 	"time"
+
+	cache "github.com/patrickmn/go-cache"
+	grpcPeer "google.golang.org/grpc/peer"
 
 	pb "github.com/bgokden/gossip-to-gossip/protos"
 )
 
 // Gossip struct keeps info of a peer
 type Gossip struct {
-	BootstrapServices []string
-	Services          sync.Map // []*string
-	Peers             sync.Map // []*pb.Peer
+	BroadcastAddresses []string
+	StaticServices     []string
+	Services           *cache.Cache // []*string
+	Peers              *cache.Cache // []*pb.Peer
+}
+
+// NewGossip return a new instance of gossip
+func NewGossip(services []string, broadcastAddresses []string) *Gossip {
+	return &Gossip{
+		BroadcastAddresses: broadcastAddresses,
+		StaticServices:     services,
+		Services:           cache.New(60*time.Minute, 10*time.Minute),
+		Peers:              cache.New(60*time.Minute, 10*time.Minute),
+	}
 }
 
 // Check method is regular check network method
@@ -53,16 +68,28 @@ func (g *Gossip) callJoin(client pb.GossipClient) error {
 }
 
 func (g *Gossip) Join(ctx context.Context, in *pb.JoinRequest) (*pb.JoinResponse, error) {
-	return &pb.JoinResponse{Address: "..."}, nil
+	peerInfo, ok := grpcPeer.FromContext(ctx)
+	if !ok {
+		log.Printf("Peer can not be get from context %v\n", peerInfo)
+		return nil, errors.New("Peer can not be get from context")
+	}
+	address := strings.Split(peerInfo.Addr.String(), ":")[0]
+	// + ":" + strconv.FormatInt(int64(in.GetPort()), 10)
+	// log.Printf("Peer with Addr: %s called Join", address)
+	peerStruct := in.Peer
+	g.Peers.Add(peerStruct.Address, peerStruct, cache.DefaultExpiration)
+	return &pb.JoinResponse{Address: address}, nil
 }
 
 func (g *Gossip) callExchangeServices(client pb.GossipClient) error {
 	outputServiceList := make([]string, 0)
-	g.Services.Range(func(key, value interface{}) bool {
-		serviceName := key.(string)
+
+	services := g.Services.Items()
+
+	for serviceName := range services {
 		outputServiceList = append(outputServiceList, serviceName)
-		return true
-	})
+	}
+
 	request := &pb.ServiceMessage{
 		Services: outputServiceList,
 	}
@@ -73,9 +100,9 @@ func (g *Gossip) callExchangeServices(client pb.GossipClient) error {
 	}
 	inputServiceList := resp.GetServices()
 	for i := 0; i < len(inputServiceList); i++ {
-		g.Services.Store(inputServiceList[i], true)
+		g.Services.Set(inputServiceList[i], true, cache.DefaultExpiration)
 	}
-	log.Printf("Services exhanged")
+	log.Printf("Services exchanged")
 	return nil
 }
 
