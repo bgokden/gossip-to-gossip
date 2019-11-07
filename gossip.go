@@ -15,10 +15,20 @@ import (
 
 // Gossip struct keeps info of a peer
 type Gossip struct {
+	ClientTokens       []string
+	ServerTokens       []string
 	BroadcastAddresses []string
+	Certs              map[string][]byte
 	StaticServices     []string
 	Services           *cache.Cache // []*string
 	Peers              *cache.Cache // []*pb.Peer
+}
+
+// SecureConnectionInfo defines information requred for a tls connection
+type SecureConnectionInfo struct {
+	Address    string
+	PrivateKey []byte
+	PublicKey  []byte
 }
 
 // NewGossip return a new instance of gossip
@@ -46,6 +56,15 @@ func (g *Gossip) Run() error {
 		g.Check()
 	}
 	return nil
+}
+
+func (g *Gossip) Register(ctx context.Context, in *pb.RegistrationRequest) (*pb.RegistrationResponse, error) {
+	// 0 is client mode
+	if in.GetMode() == 0 {
+		return &pb.RegistrationResponse{}, nil
+	} else { // server mode
+		return &pb.RegistrationResponse{}, nil
+	}
 }
 
 func (g *Gossip) callJoin(client pb.GossipClient) error {
@@ -77,7 +96,7 @@ func (g *Gossip) Join(ctx context.Context, in *pb.JoinRequest) (*pb.JoinResponse
 	// + ":" + strconv.FormatInt(int64(in.GetPort()), 10)
 	// log.Printf("Peer with Addr: %s called Join", address)
 	peerStruct := in.Peer
-	g.Peers.Add(peerStruct.Address, peerStruct, cache.DefaultExpiration)
+	g.Peers.Add(peerStruct.ConnectionInfo.Addresses[0], peerStruct, cache.DefaultExpiration)
 	return &pb.JoinResponse{Address: address}, nil
 }
 
