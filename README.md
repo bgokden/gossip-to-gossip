@@ -2,6 +2,8 @@
 
 A Secure Gossip Protocol for GRPC
 
+**NOTE: Implementation is not complete yet**
+
 This is an extension project for veri
 
 Veri is a decentralised and distributed Feature Store.
@@ -9,6 +11,15 @@ Veri is a decentralised and distributed Feature Store.
 Node synchronisation and discovery is done over gossip.
 
 I had some problems when I needed tls certificate rotation.
+
+Gossip to gossip is a project to solve these issues.
+
+Note:
+SWIM and Lifeguard doesn't solve all of my issues.
+["SWIM: Scalable Weakly-consistent Infection-style Process Group Membership Protocol"](http://ieeexplore.ieee.org/document/1028914/)
+[Lifeguard : SWIM-ing with Situational Awareness](https://arxiv.org/abs/1707.00788)
+
+## General explanation:
 
 Gossip to gossip has two services running on different ports:
 
@@ -28,7 +39,7 @@ When a server registered, the registering server will connect back and exchange 
 
 Gossip allows synchronisation of new connection info (certificate rotation), service list and peer list.
 
-Veri uses a weak network structure where nodes doesn't know and doesn't care about the full network as long as network share at least one node. This makes it virtually infinitely scalable.
+Veri uses a weakly consistent network structure where nodes doesn't know and doesn't care about the full network as long as network share at least one node. This makes it virtually infinitely scalable.
 
 
 It is expected that every node updates its own self signed certificate and send reachable interfaces public key to other peers. Every node is responsible for updating its client set with new certificates. It is possible that a node is running on multiple interfaces so every node can support multiple addresses. This is called broadcast addresses. Every join request includes this broadcast addresses and certificates information. It is also possible that a node doesn't know its external ip address, that is why every join response includes the extracted ip address of the node. So a node can ask other node about its external ip address. A node is responsible for updating its broadcast address list with new ip address information if possible.
@@ -40,6 +51,8 @@ For known peers, the periodic join calls are run and other peer data is exchange
 Since different grpc services can share same port and connection.
 3rd party services can run on the server where gossip service is running and elevate its secure channels.
 
+
+## Client Set Creation:
 
 Connections will be stored in a connection map by client id to client wrapper.
 Client wrapper keeps a grpc client and connection statistic like latency.
@@ -70,3 +83,11 @@ While groups have elements:
 It is possible have a shorter virtual client list than number of available peers.
 
 This virtual client list will be periodically updated that gives best possible query reach for veri distributed queries where reaching more varied nodes is important. This also allows automated client side load balancing where nodes are encouraged to query varied nodes.
+
+## Failure detection:
+
+Veri has a different approach to failure detection than SWIM. It is a combination of heartbeat. In Veri, each node has a view of the data environment and target is having each node has a similar view of data environment. So each node has a signature and timestamp. Timestamp is the last time a node has done internal signature update. It timestamp is not being updated. It means that peer is dead. Although it responds to queries, signature update timestamp shows that node is actually updating its internal state. In Veri, signature is the average of all data and histogram of all data. The target is each decreasing the distance between the signatures. Peers with higher distance are prioritised for data exchange. Distances are expected to decrease over time. Data exchange rate is decreased for peers with similar signature. The Central limit theorem states that even with random data sampling, signatures should converge.
+
+In Veri each node expected to have similar computing power, so a good limit for signature timestamp timeout period is calculated by average + 2 * standard deviation of timestamp and current time difference list.
+Older timestamps will be removed and will not be exchanged with other peers.
+Signature timestamp depends more on processing power than network latency.
