@@ -4,9 +4,9 @@ A Secure Gossip Protocol for GRPC
 
 **NOTE: Implementation is not complete yet**
 
-This is an extension project for veri
+This is an extension project for [Veri](https://github.com/bgokden/veri)
 
-Veri is a decentralised and distributed Feature Store.
+[Veri](https://github.com/bgokden/veri) is a decentralised and distributed Feature Store.
 
 Node synchronisation and discovery is done over gossip.
 
