@@ -31,7 +31,12 @@ func (pk *PredefinedKey) EncryptWithPrefix(message []byte) ([]byte, error) {
 
 func (pk *PredefinedKey) Encrypt(message []byte) ([]byte, error) {
 	sha1 := sha1.New()
-	randomSource := bytes.NewReader(RandomBytes(1024))
+	seed := make([]byte, 2048)
+	_, err := rand.Read(seed)
+	if err != nil {
+		return nil, err
+	}
+	randomSource := bytes.NewReader(seed)
 	encrypted, err := rsa.EncryptOAEP(sha1, randomSource, &pk.private.PublicKey, message, nil)
 	if err != nil {
 		return nil, err
@@ -41,7 +46,12 @@ func (pk *PredefinedKey) Encrypt(message []byte) ([]byte, error) {
 
 func (pk *PredefinedKey) Decrypt(encrypted []byte) ([]byte, error) {
 	sha1 := sha1.New()
-	randomSource := bytes.NewReader(RandomBytes(1024))
+	seed := make([]byte, 2048)
+	_, err := rand.Read(seed)
+	if err != nil {
+		return nil, err
+	}
+	randomSource := bytes.NewReader(seed)
 	decrypted, err := rsa.DecryptOAEP(sha1, randomSource, pk.private, encrypted, nil)
 	if err != nil {
 		return nil, err
