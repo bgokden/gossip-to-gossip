@@ -18,12 +18,11 @@ func TestNegotiation(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	seed := []byte(negotiation.RandomString(50))
-	prefix := []byte(negotiation.RandomString(50))
+	prefix := negotiation.RandomBytes(50)
 
-	pk1 := negotiation.NewPredefinedKey(key, seed, prefix)
+	pk1 := negotiation.NewPredefinedKey(key, prefix)
 
-	pk2 := negotiation.NewPredefinedKey(key, seed, prefix)
+	pk2 := negotiation.NewPredefinedKey(key, prefix)
 
 	ns1 := pk1.CreateNegotiationSession()
 
