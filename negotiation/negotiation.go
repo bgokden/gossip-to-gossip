@@ -2,9 +2,9 @@ package negotiation
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
-	"math/rand"
 )
 
 type NegotiationSession struct {
@@ -31,13 +31,7 @@ func (pk *PredefinedKey) EncryptWithPrefix(message []byte) ([]byte, error) {
 
 func (pk *PredefinedKey) Encrypt(message []byte) ([]byte, error) {
 	sha1 := sha1.New()
-	seed := make([]byte, 2048)
-	_, err := rand.Read(seed)
-	if err != nil {
-		return nil, err
-	}
-	randomSource := bytes.NewReader(seed)
-	encrypted, err := rsa.EncryptOAEP(sha1, randomSource, &pk.private.PublicKey, message, nil)
+	encrypted, err := rsa.EncryptOAEP(sha1, rand.Reader, &pk.private.PublicKey, message, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -46,13 +40,7 @@ func (pk *PredefinedKey) Encrypt(message []byte) ([]byte, error) {
 
 func (pk *PredefinedKey) Decrypt(encrypted []byte) ([]byte, error) {
 	sha1 := sha1.New()
-	seed := make([]byte, 2048)
-	_, err := rand.Read(seed)
-	if err != nil {
-		return nil, err
-	}
-	randomSource := bytes.NewReader(seed)
-	decrypted, err := rsa.DecryptOAEP(sha1, randomSource, pk.private, encrypted, nil)
+	decrypted, err := rsa.DecryptOAEP(sha1, rand.Reader, pk.private, encrypted, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -100,6 +88,6 @@ func (ns *NegotiationSession) ValidateWithPrefix(prefix []byte, message []byte) 
 // RandomBytes generates cryptographically secure pseudorandom numbers byte array
 func RandomBytes(n int) []byte {
 	b := make([]byte, n)
-	rand.Read(b) // ignore error, it always returns a nil error
+	rand.Read(b) // ignore error
 	return b
 }
