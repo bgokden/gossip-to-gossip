@@ -24,6 +24,17 @@ func NewPredefinedKey(private *rsa.PrivateKey, prefix []byte) *PredefinedKey {
 	}
 }
 
+func NewRandomPredefinedKey() *PredefinedKey {
+	reader := rand.Reader
+	bitSize := 2048
+
+	key, _ := rsa.GenerateKey(reader, bitSize)
+
+	prefix := RandomBytes(50)
+
+	return NewPredefinedKey(key, prefix)
+}
+
 func (pk *PredefinedKey) EncryptWithPrefix(message []byte) ([]byte, error) {
 	message = append(pk.prefix, message...)
 	return pk.Encrypt(message)

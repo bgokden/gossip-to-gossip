@@ -20,8 +20,8 @@ import (
 // Gossip struct keeps info of a peer
 type Gossip struct {
 	GossipPort         uint32
-	NegotiationPort    uint32
-	PredefinedKey      negotiation.PredefinedKey
+	RegistrationPort   uint32
+	PredefinedKey      *negotiation.PredefinedKey
 	ClientTokens       []string
 	ServerTokens       []string
 	BroadcastAddresses []string
@@ -39,19 +39,25 @@ type SecureConnectionInfo struct {
 }
 
 // NewGossip return a new instance of gossip
-func NewGossip(gossipPort uint32, negotiationPort uint32, services []string, broadcastAddresses []string) *Gossip {
-	return &Gossip{
+func NewGossip(gossipPort uint32, registrationPort uint32, services []string, broadcastAddresses []string, predefinedKey *negotiation.PredefinedKey) *Gossip {
+	g := &Gossip{
 		GossipPort:         gossipPort,
-		NegotiationPort:    negotiationPort,
+		RegistrationPort:   registrationPort,
+		PredefinedKey:      predefinedKey,
 		BroadcastAddresses: broadcastAddresses,
 		StaticServices:     services,
 		Services:           cache.New(60*time.Minute, 10*time.Minute),
 		Peers:              cache.New(60*time.Minute, 10*time.Minute),
 	}
+	for _, service := range services {
+		g.Services.Set(service, false, cache.NoExpiration)
+	}
+	return g
 }
 
-func (g *Gossip) StartNegotiationServer() error {
-	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", g.NegotiationPort))
+func (g *Gossip) StartRegistrationServer() error {
+	log.Printf("Starting registration server at %v\n", fmt.Sprintf("0.0.0.0:%d", g.RegistrationPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", g.RegistrationPort))
 	if err != nil {
 		log.Printf("failed to listen: %v", err)
 		return err
@@ -59,12 +65,48 @@ func (g *Gossip) StartNegotiationServer() error {
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
 	pb.RegisterRegistrationServer(grpcServer, g)
-	grpcServer.Serve(lis)
+	log.Printf("Serve registration server at %v\n", fmt.Sprintf("0.0.0.0:%d", g.RegistrationPort))
+	return grpcServer.Serve(lis)
+}
+
+func (g *Gossip) getRegistrationClient(address string) (pb.RegistrationClient, *grpc.ClientConn, error) {
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		log.Printf("fail to dial: %v\n", err)
+		return nil, nil, err
+	}
+	client := pb.NewRegistrationClient(conn)
+	return client, conn, nil
+}
+
+func (g *Gossip) RegisterToKnownServices() error {
+	for service, item := range g.Services.Items() {
+		if isRegistred, ok := item.Object.(bool); ok && !isRegistred {
+			log.Printf("registering to %v\n", service)
+			client, conn, err := g.getRegistrationClient(service)
+			if err != nil {
+				log.Printf("connection failed to %v %v\n", service, err)
+			}
+			defer conn.Close()
+			err = g.callRegister(client)
+			if err == nil {
+				log.Printf("registration successful to %v\n", service)
+				g.Services.Set(service, false, cache.NoExpiration)
+			} else {
+				log.Printf("registration failed to %v %v\n", service, err)
+			}
+		}
+	}
 	return nil
 }
 
 // Check method is regular check network method
 func (g *Gossip) Check() error {
+	err := g.RegisterToKnownServices()
+	if err != nil {
+		log.Printf("error: %v", err)
+		return err
+	}
 	return nil
 }
 
