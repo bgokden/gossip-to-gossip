@@ -8,4 +8,5 @@ require (
 	github.com/stretchr/testify v1.4.0
 	golang.org/x/net v0.0.0-20191101175033-0deb6923b6d9
 	google.golang.org/grpc v1.24.0
+	k8s.io/client-go v11.0.0+incompatible
 )

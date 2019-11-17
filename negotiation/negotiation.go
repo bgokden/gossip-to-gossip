@@ -2,9 +2,13 @@ package negotiation
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
+	"io"
 )
 
 type NegotiationSession struct {
@@ -101,4 +105,45 @@ func RandomBytes(n int) []byte {
 	b := make([]byte, n)
 	rand.Read(b) // ignore error
 	return b
+}
+
+func createHashMD5(key []byte) []byte {
+	hasher := md5.New()
+	hasher.Write(key)
+	return hasher.Sum(nil)
+}
+
+func (ns *NegotiationSession) encryptAES(data []byte, passphrase []byte) ([]byte, error) {
+	block, err := aes.NewCipher(createHashMD5(passphrase))
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, err
+	}
+	ciphertext := gcm.Seal(nonce, nonce, data, nil)
+	return ciphertext, nil
+}
+
+func (ns *NegotiationSession) decryptAES(data []byte, passphrase []byte) ([]byte, error) {
+	block, err := aes.NewCipher(createHashMD5(passphrase))
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonceSize := gcm.NonceSize()
+	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, err
+	}
+	return plaintext, nil
 }

@@ -1,7 +1,10 @@
 package gossip
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"log"
@@ -11,7 +14,9 @@ import (
 
 	cache "github.com/patrickmn/go-cache"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	grpcPeer "google.golang.org/grpc/peer"
+	kubecert "k8s.io/client-go/util/cert"
 
 	"github.com/bgokden/gossip-to-gossip/negotiation"
 	pb "github.com/bgokden/gossip-to-gossip/protos"
@@ -62,15 +67,26 @@ func (g *Gossip) StartRegistrationServer() error {
 		log.Printf("failed to listen: %v", err)
 		return err
 	}
-	var opts []grpc.ServerOption
-	grpcServer := grpc.NewServer(opts...)
+	certPem, keyPem, err := kubecert.GenerateSelfSignedCertKey("*", []net.IP{}, []string{})
+	if err != nil {
+		return err
+	}
+	cert, err := tls.X509KeyPair(certPem, keyPem)
+	if err != nil {
+		log.Fatal(err)
+	}
+	creds := credentials.NewServerTLSFromCert(&cert)
+	grpcServer := grpc.NewServer(grpc.Creds(creds))
 	pb.RegisterRegistrationServer(grpcServer, g)
 	log.Printf("Serve registration server at %v\n", fmt.Sprintf("0.0.0.0:%d", g.RegistrationPort))
 	return grpcServer.Serve(lis)
 }
 
 func (g *Gossip) getRegistrationClient(address string) (pb.RegistrationClient, *grpc.ClientConn, error) {
-	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	config := &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(credentials.NewTLS(config)))
 	if err != nil {
 		log.Printf("fail to dial: %v\n", err)
 		return nil, nil, err
@@ -238,4 +254,25 @@ func (s *Gossip) ExchangeServices(ctx context.Context, in *pb.ServiceMessage) (*
 
 func (s *Gossip) ExchangePeers(ctx context.Context, in *pb.PeerMessage) (*pb.PeerMessage, error) {
 	return &pb.PeerMessage{}, nil
+}
+
+func EncodeSecureConnectionInfo(sci *SecureConnectionInfo) ([]byte, error) {
+	var byteBuffer bytes.Buffer
+	encoder := gob.NewEncoder(&byteBuffer)
+	if err := encoder.Encode(*sci); err != nil {
+		log.Printf("Encoding error %v\n", err)
+		return nil, err
+	}
+	return byteBuffer.Bytes(), nil
+}
+
+func DecodeSecureConnectionInfo(byteArray []byte) (*SecureConnectionInfo, error) {
+	var element SecureConnectionInfo
+	r := bytes.NewReader(byteArray)
+	decoder := gob.NewDecoder(r)
+	if err := decoder.Decode(&element); err != nil {
+		log.Printf("Encoding error %v\n", err)
+		return nil, err
+	}
+	return &element, nil
 }
