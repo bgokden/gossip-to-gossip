@@ -91,7 +91,7 @@ func (g *Gossip) RegisterToKnownServices() error {
 			err = g.callRegister(client)
 			if err == nil {
 				log.Printf("registration successful to %v\n", service)
-				g.Services.Set(service, false, cache.NoExpiration)
+				g.Services.Set(service, true, cache.NoExpiration)
 			} else {
 				log.Printf("registration failed to %v %v\n", service, err)
 			}

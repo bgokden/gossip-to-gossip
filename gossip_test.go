@@ -34,12 +34,6 @@ func TestGossipNegotiation(t *testing.T) {
 			t.Logf("G1 err: %v\n", err)
 		}
 	}()
-	go func() {
-		err := g2.StartRegistrationServer()
-		if err != nil {
-			t.Logf("G2 err: %v\n", err)
-		}
-	}()
 
 	time.Sleep(500 * time.Millisecond)
 
@@ -47,5 +41,10 @@ func TestGossipNegotiation(t *testing.T) {
 	go g2.Run()
 	// assert negotiation successful
 	time.Sleep(300 * time.Millisecond)
-	assert.NotNil(t, nil)
+	isRegistredAsInterface, ok := g2.Services.Get(services[0])
+	assert.True(t, ok)
+	assert.NotNil(t, isRegistredAsInterface)
+	isRegistred, ok := isRegistredAsInterface.(bool)
+	assert.True(t, ok)
+	assert.True(t, isRegistred)
 }
