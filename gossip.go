@@ -76,7 +76,10 @@ func (g *Gossip) StartRegistrationServer() error {
 		log.Printf("failed to listen: %v", err)
 		return err
 	}
-	creds := credentials.NewServerTLSFromCert(&cert)
+	config := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+	creds := credentials.NewTLS(config)
 	grpcServer := grpc.NewServer(grpc.Creds(creds))
 	pb.RegisterRegistrationServer(grpcServer, g)
 	log.Printf("Serve registration server at %v\n", fmt.Sprintf("0.0.0.0:%d", g.RegistrationPort))
