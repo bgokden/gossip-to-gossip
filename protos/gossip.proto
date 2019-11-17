@@ -10,7 +10,7 @@ service Gossip {
 }
 
 service Registration {
-  rpc Register(RegistrationRequest) returns (RegistrationResponse) {}
+  rpc Register(stream BytesMessage) returns (stream BytesMessage) {}
 }
 
 message RegistrationRequest{
@@ -58,6 +58,10 @@ message StringPair {
 message BytesPair {
   string name = 1;
   bytes value = 2;
+}
+
+message BytesMessage {
+  bytes value = 1;
 }
 
 message PeerMessage {
