@@ -62,18 +62,19 @@ func NewGossip(gossipPort uint32, registrationPort uint32, services []string, br
 
 func (g *Gossip) StartRegistrationServer() error {
 	log.Printf("Starting registration server at %v\n", fmt.Sprintf("0.0.0.0:%d", g.RegistrationPort))
-	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", g.RegistrationPort))
-	if err != nil {
-		log.Printf("failed to listen: %v", err)
-		return err
-	}
+
 	certPem, keyPem, err := kubecert.GenerateSelfSignedCertKey("*", []net.IP{}, []string{})
 	if err != nil {
 		return err
 	}
 	cert, err := tls.X509KeyPair(certPem, keyPem)
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", g.RegistrationPort))
+	if err != nil {
+		log.Printf("failed to listen: %v", err)
+		return err
 	}
 	creds := credentials.NewServerTLSFromCert(&cert)
 	grpcServer := grpc.NewServer(grpc.Creds(creds))
